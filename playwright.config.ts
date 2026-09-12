@@ -25,6 +25,7 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        channel: "chromium", // Headless do navegador completo, com o mesmo ciclo de contextos do Chrome.
         viewport: { width: 1440, height: 900 },
         launchOptions: {
           args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],

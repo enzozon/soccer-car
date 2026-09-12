@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
 
 test("sem WebGL e sem armazenamento o treino continua jogável", async ({
   page,
@@ -50,8 +49,7 @@ test("garagem, treino, movimento, pausa e preferências persistidas", async ({
   await page.getByRole("button", { name: "PRONTO PARA JOGAR" }).click();
   await expect(page.locator("#selected-car")).toHaveText("Rally");
   if (info.project.name === "chromium") {
-    await mkdir("docs/screenshots", { recursive: true });
-    await page.screenshot({ path: "docs/screenshots/menu.png" });
+    await page.screenshot({ path: info.outputPath("menu.png") });
   }
   await page.getByRole("button", { name: "TREINO LIVRE", exact: true }).click();
   await expect(page.locator("#hud")).toBeVisible();
@@ -65,7 +63,7 @@ test("garagem, treino, movimento, pausa e preferências persistidas", async ({
   await page.keyboard.press("c");
   await expect(page.locator("#camera-button")).toContainText("bola");
   if (info.project.name === "chromium")
-    await page.screenshot({ path: "docs/screenshots/partida.png" });
+    await page.screenshot({ path: info.outputPath("partida.png") });
   await page.keyboard.press("Escape");
   await expect(page.locator("#pause")).toBeVisible();
   await page
@@ -176,7 +174,7 @@ test("layout de celular e controles de toque funcionam em 2D", async ({
   ).toBe(true);
   if (info.project.name === "chromium")
     await page.screenshot({
-      path: "docs/screenshots/celular.png",
+      path: info.outputPath("celular.png"),
       fullPage: true,
     });
   await page.getByRole("button", { name: "TREINO LIVRE", exact: true }).tap();
