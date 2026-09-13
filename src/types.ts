@@ -20,6 +20,12 @@ export interface Vec3 {
   y: number;
   z: number;
 }
+export interface Quaternion {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}
 export interface Car {
   position: Vec3;
   velocity: Vec3;
@@ -29,10 +35,20 @@ export interface Car {
   boosting: boolean;
   jumpCount: number;
   jumpHeld: boolean;
+  orientation: Quaternion;
+  angularVelocity: Vec3;
+  surfaceNormal: Vec3;
+  jumpTime: number;
+  jumpHoldTime: number;
+  dodgeTime: number;
+  dodgeAxis: Vec3;
+  contactLock: number;
+  supersonic: boolean;
 }
 export interface Ball {
   position: Vec3;
   velocity: Vec3;
+  angularVelocity: Vec3;
 }
 export interface InputFrame {
   throttle: number;
@@ -40,11 +56,15 @@ export interface InputFrame {
   boost: boolean;
   jump: boolean;
   drift: boolean;
+  pitch?: number;
+  yaw?: number;
+  roll?: number;
 }
 export interface BoostPad {
   x: number;
   z: number;
   cooldown: number;
+  large: boolean;
 }
 export type GamePhase = "kickoff" | "playing" | "goal" | "finished";
 export interface GameState {
@@ -63,13 +83,16 @@ export interface GameState {
   hits: number;
 }
 export const FIELD = {
-  halfWidth: 24,
-  halfLength: 36,
-  wallHeight: 12,
-  goalHalfWidth: 7,
-  goalHeight: 5,
-  ballRadius: 1.25,
-  carRadius: 1.35,
+  halfWidth: 40.96,
+  halfLength: 51.2,
+  wallHeight: 20.48,
+  goalHalfWidth: 8.92755,
+  goalHeight: 6.42775,
+  goalDepth: 8.8,
+  ballRadius: 0.9125,
+  carRadius: 0.65,
+  rampRadius: 2.56,
+  cornerLimit: 80.64,
 } as const;
 export const NEUTRAL_INPUT: InputFrame = {
   throttle: 0,
@@ -77,6 +100,9 @@ export const NEUTRAL_INPUT: InputFrame = {
   boost: false,
   jump: false,
   drift: false,
+  pitch: 0,
+  yaw: 0,
+  roll: 0,
 };
 export const DEFAULT_SETTINGS: Settings = {
   model: "pulse",
@@ -93,23 +119,23 @@ export const DEFAULT_SETTINGS: Settings = {
 export const CAR_MODELS = {
   pulse: {
     name: "Pulse",
-    label: "O equilíbrio perfeito",
-    acceleration: 25,
-    maxSpeed: 24,
+    label: "Compacto e esportivo",
+    acceleration: 16,
+    maxSpeed: 14.1,
     turnRate: 2.65,
   },
   rally: {
     name: "Rally",
-    label: "Feito para as curvas",
-    acceleration: 28,
-    maxSpeed: 22,
-    turnRate: 3.15,
+    label: "Robusto e elevado",
+    acceleration: 16,
+    maxSpeed: 14.1,
+    turnRate: 2.65,
   },
   vector: {
     name: "Vector",
-    label: "Velocidade em linha reta",
-    acceleration: 22,
-    maxSpeed: 28,
-    turnRate: 2.3,
+    label: "Baixo e aerodinâmico",
+    acceleration: 16,
+    maxSpeed: 14.1,
+    turnRate: 2.65,
   },
 } as const;

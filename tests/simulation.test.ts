@@ -43,11 +43,12 @@ test("gol exige bola inteira além da linha e dentro da abertura", () => {
     [0, FIELD.goalHeight],
   ]) {
     const blocked = createGame("training", DEFAULT_SETTINGS);
-    shoot(blocked, -FIELD.halfLength, x, y);
+    shoot(blocked, -FIELD.halfLength + FIELD.ballRadius + 0.2, x, y);
+    advance(blocked, 0.15);
     assert.deepEqual(blocked.score, [0, 0]);
     assert.ok(
-      blocked.ball.velocity.z > 0,
-      "trave lateral/alta rebate para o campo",
+      blocked.ball.velocity.z > 0 || blocked.ball.velocity.y > 5,
+      "trave ou rampa impedem a entrada direta",
     );
   }
 });
@@ -60,6 +61,8 @@ test("saída congela relógio, empate inicia gol de ouro e gol encerra", () => {
   state.timeRemaining = dt;
   stepGame(state, NEUTRAL_INPUT, DEFAULT_SETTINGS, dt);
   assert.equal(state.overtime, true);
+  assert.equal(state.phase, "kickoff");
+  advance(state, 3);
   assert.equal(state.phase, "playing");
   shoot(state, -FIELD.halfLength - FIELD.ballRadius);
   assert.equal(state.phase, "goal");
@@ -80,22 +83,23 @@ test("tempo esgotado encerra vantagem e reposicionar preserva placar", () => {
   resetPositions(state);
   assert.deepEqual(state.score, [2, 1]);
   assert.equal(state.timeRemaining, 0);
-  assert.equal(state.player.position.z, 20);
+  assert.equal(state.player.position.z, 38.4);
 });
 
 test("turbo consome e recarrega no duelo, treino mantém reserva ilimitada", () => {
   const duel = createGame("duel", DEFAULT_SETTINGS);
   duel.phase = "playing";
+  duel.player.position.x = 6;
   const boost = { ...NEUTRAL_INPUT, throttle: 1, boost: true };
   advance(duel, 1, boost);
   assert.ok(duel.player.boost < 75 && duel.player.boost > 65);
   const pad = duel.pads[0];
-  duel.player.position = { x: pad.x, y: 0.72, z: pad.z };
+  duel.player.position = { x: pad.x, y: 0.25, z: pad.z };
   duel.player.velocity = { x: 0, y: 0, z: 0 };
   duel.player.boost = 30;
   stepGame(duel, NEUTRAL_INPUT, DEFAULT_SETTINGS, dt);
-  assert.equal(duel.player.boost, 60);
-  assert.equal(pad.cooldown, 6);
+  assert.equal(duel.player.boost, 42);
+  assert.equal(pad.cooldown, 4);
   const training = createGame("training", DEFAULT_SETTINGS);
   advance(training, 4, boost);
   assert.equal(training.player.boost, 100);
@@ -106,7 +110,7 @@ test("salto usa borda de pressão, permite segundo salto e volta ao chão", () =
   const jump = { ...NEUTRAL_INPUT, jump: true };
   advance(state, 0.1, jump);
   assert.equal(state.player.jumpCount, 1);
-  assert.ok(state.player.position.y > 0.72);
+  assert.ok(state.player.position.y > 0.5);
   stepGame(state, NEUTRAL_INPUT, DEFAULT_SETTINGS, dt);
   stepGame(state, jump, DEFAULT_SETTINGS, dt);
   assert.equal(state.player.jumpCount, 2);
@@ -117,7 +121,7 @@ test("salto usa borda de pressão, permite segundo salto e volta ao chão", () =
   assert.ok(state.player.velocity.y < speed);
   advance(state, 3);
   assert.equal(state.player.grounded, true);
-  assert.equal(state.player.position.y, 0.72);
+  assert.equal(state.player.position.y, 0.25);
 });
 
 test("simulação prolongada permanece finita e determinística com colisões", () => {
@@ -144,4 +148,23 @@ test("simulação prolongada permanece finita e determinística com colisões", 
   const bot = createGame("duel", DEFAULT_SETTINGS);
   advance(bot, 40);
   assert.ok(bot.hits > 0, "bot precisa alcançar a bola");
+});
+
+test("gol de empate no ultimo tick inicia prorrogacao depois da comemoracao", () => {
+  const state = createGame("duel", DEFAULT_SETTINGS);
+  state.phase = "playing";
+  state.score = [0, 1];
+  state.timeRemaining = dt;
+  shoot(state, -FIELD.halfLength - FIELD.ballRadius);
+  assert.deepEqual(state.score, [1, 1]);
+  assert.equal(state.phase, "goal");
+  advance(state, 2);
+  assert.equal(state.phase, "kickoff");
+  assert.equal(state.overtime, true);
+  advance(state, 3);
+  assert.equal(state.phase, "playing");
+  shoot(state, -FIELD.halfLength - FIELD.ballRadius);
+  advance(state, 2.1);
+  assert.equal(state.phase, "finished");
+  assert.deepEqual(state.score, [2, 1]);
 });
