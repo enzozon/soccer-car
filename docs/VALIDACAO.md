@@ -1,23 +1,22 @@
 # Validação e limites
 
-Registro local de 12/09/2026. Os resultados de cada revisão enviada também ficam em [GitHub Actions](https://github.com/enzozon/soccer-car/actions).
+Registro da versão 0.2 em 13/09/2026. As execuções remotas ficam em [GitHub Actions](https://github.com/enzozon/soccer-car/actions).
 
-## Funcionalidade
+## Verificações
 
-- TypeScript estrito e build de produção: aprovados.
-- **9 testes de lógica**: configurações corrompidas, limites de entrada do controle, gols, colisão na abertura do gol, relógio, prorrogação, estado final, recarga, salto duplo e estabilidade determinística.
-- A verificação prolongada compara duas simulações idênticas por 30.000 passos, além de conferir que o bot alcança a bola.
-- **15 cenários de navegador**: cinco fluxos em cada um dos três motores. Garagem/treino/câmera/pausa/persistência; duelo e relógio; gamepad simulado; layout e toque; ausência de WebGL e armazenamento bloqueado.
-- Os testes de navegador usam o **build de produção**, servido pelo Vite Preview.
-- Inspeção visual das capturas de desktop 1440 × 900 e celular 390 × 844, com ajuste dos textos para caberem nos seletores menores.
+- TypeScript estrito e build de produção.
+- **20 testes de lógica**: entrada, preferências, gravidade, aceleração, velocidades, frenagem, consumo, saltos, flips, air roll, voo, paredes, teto, impulso externo, traves, gols e empate no último instante.
+- Duas simulações idênticas comparadas por 30.000 passos; verificação de que o bot alcança a bola.
+- **24 cenários de navegador**: oito fluxos em Chromium, Firefox e WebKit. Garagem/treino/câmera/pausa/persistência; duelo; gamepad simulado; toque; WebGL indisponível; recuperação após perda do contexto; migração da preferência antiga; subida e salto da parede.
+- Os testes interativos usam o build de produção no Vite Preview. A renderização Chromium usa SwiftShader. Os cenários de partida verificam explicitamente o modo 3D.
 
-| Motor automatizado | Versão instalada localmente | Verificação |
-|---|---|---|
-| Chromium | Chrome for Testing 153.0.8010.12 | Fluxos em 3D e 2D; WebGL por SwiftShader |
-| Firefox | 155.0 | Fluxos de jogo e modo compatível |
-| WebKit | 26.6 | Fluxos de jogo e modo compatível |
+| Motor local | Versão                           | Cobertura                             |
+| ----------- | -------------------------------- | ------------------------------------- |
+| Chromium    | Chrome for Testing 153.0.8010.12 | Arena 3D, controles e falhas gráficas |
+| Firefox     | 155.0                            | Arena 3D, controles e falhas gráficas |
+| WebKit      | 26.6                             | Arena 3D, controles e falhas gráficas |
 
-WebKit no Windows não equivale a testar um aparelho Apple real. O toque e o gamepad foram simulados; nenhum controle físico ou telefone real foi conectado durante esta validação. A compatibilidade de dispositivos precisa ser conferida no navegador do jogador. A simulação de gamepad valida a integração da API, não drivers USB/Bluetooth.
+Se Firefox/WebKit de um executor não oferecer WebGL 2, os cenários de partida são marcados como indisponíveis; o teste dedicado ainda exige o erro visível. Chromium deve renderizar 3D para a verificação passar. WebKit no Windows não equivale a um dispositivo Apple real. Gamepad e toque são simulados, sem validação de controles físicos ou telefones.
 
 ## Medida reproduzível de CPU
 
@@ -25,26 +24,24 @@ WebKit no Windows não equivale a testar um aparelho Apple real. O toque e o gam
 npm run benchmark
 ```
 
-Resultado local: Windows, Node.js 24.19.0, AMD Ryzen 5 5600X. Foram executadas seis rodadas de 120.000 passos de duelo; a primeira é aquecimento, e o resultado é a mediana das cinco seguintes.
+Windows, Node.js 24.19.0, AMD Ryzen 5 5600X. Seis rodadas de 120.000 passos de duelo: uma de aquecimento e mediana das cinco seguintes.
 
-| Medida | Resultado local |
-|---|---|
-| 120.000 passos de física e bot | 56,85 ms |
-| Custo médio por passo, na rodada mediana | 0,474 μs |
-| JavaScript principal, gzip | 17.936 bytes |
-| Motor 3D separado, gzip | 134.218 bytes |
-| CSS, gzip | 5.031 bytes |
+| Medida                                  | Resultado local |
+| --------------------------------------- | --------------- |
+| 120.000 passos de física e bot          | 808,62 ms       |
+| Custo médio por passo na rodada mediana | 6,739 μs        |
+| JavaScript principal, gzip              | 20.340 bytes    |
+| Motor 3D, gzip                          | 134.230 bytes   |
+| CSS, gzip                               | 5.185 bytes     |
 
-Essas medidas cobrem a CPU da simulação e os arquivos gerados. Não medem a GPU, o tempo de download completo ou os FPS de computadores modestos. As fontes locais são arquivos separados. Os tamanhos variam um pouco com revisões e parâmetros de compressão.
+Esse benchmark mede CPU da simulação e tamanho dos arquivos. Não mede FPS, GPU ou download completo; fontes locais são separadas. Capturas de testes com relógio controlado também não constituem benchmark de FPS.
 
-## Decisões de desempenho
+## Desempenho e recuperação
 
-- Geometria estática agrupada com `InstancedMesh`; materiais e geometrias compartilhados.
-- Exportações explícitas do Three.js evitam carregar módulos que não são usados.
-- Sem sombras dinâmicas caras, pós-processamento, texturas externas ou modelos baixados durante o jogo.
-- Limite de resolução por qualidade, com redução automática quando o tempo por quadro aumenta.
-- Passo fixo e limite de recuperação impedem uma fila ilimitada de física. Abaixo de aproximadamente 15 quadros/s, a simulação pode desacelerar; escolher o modo 2D reduz o custo de renderização.
-- O contador FPS usa tempo real, separado do delta limitado da simulação.
-- Ao perder o contexto WebGL, o jogo troca para Canvas 2D. Teclado, bot e regras continuam usando o mesmo estado.
+- Geometria estática agrupada e materiais compartilhados. Os 34 pontos de turbo usam duas chamadas de desenho com instâncias.
+- Sem sombras dinâmicas, pós-processamento ou modelos/texturas baixados durante a partida.
+- Econômico limita a resolução a 0,8 vezes o tamanho CSS; Automático reduz a resolução durante quedas prolongadas.
+- Passo fixo com até oito passos por quadro, HUD a 10 Hz e pausa ao perder foco. Abaixo de aproximadamente 15 FPS, a simulação pode desacelerar.
+- Perda do contexto gráfico pausa a partida e oferece reconstrução da arena. Sem WebGL 2, aparece uma mensagem; o jogo não troca para 2D.
 
-O objetivo é boa compatibilidade, sem prometer 60 FPS em qualquer dispositivo. Use **Econômico** ou **Modo 2D compatível** se necessário. HTTPS ou localhost são recomendados para a Gamepad API.
+Use o perfil Econômico em máquinas modestas. Não há promessa de 60 FPS em qualquer dispositivo. As aproximações da física estão em [FISICA.md](FISICA.md).
