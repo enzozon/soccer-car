@@ -26,7 +26,11 @@ test("preferências válidas preservadas e valores numéricos limitados", () => 
   });
   assert.equal(value.model, "rally");
   assert.equal(value.color, "#123ABC");
-  assert.equal(value.quality, "2d");
+  assert.equal(
+    value.quality,
+    "auto",
+    "perfil 2D antigo migra para 3D automatico",
+  );
   assert.equal(value.deadzone, 0.05);
   assert.equal(value.sensitivity, 2);
   assert.equal(value.volume, 0);

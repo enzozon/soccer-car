@@ -35,16 +35,17 @@ app.innerHTML = `
       <div class="scoreboard"><div class="team player-team"><span>VOCÊ</span><strong id="player-score">0</strong></div><div class="clock"><small id="mode-label">DUELO</small><strong id="clock">3:00</strong></div><div class="team bot-team"><strong id="bot-score">0</strong><span>BOT</span></div></div>
       <div class="game-buttons"><button class="small-button" id="camera-button">Câmera: carro [C]</button><button class="small-button" id="pause-button">Pausar [Esc]</button></div>
       <div class="announcement" id="announcement" role="status" aria-live="polite"></div>
-      <div class="driving-info"><div class="speed"><strong id="speed">0</strong><span>KM/H</span></div><div class="boost-meter"><div><span>TURBO</span><strong id="boost-value">100</strong></div><meter id="boost" min="0" max="100" value="100" aria-label="Carga do turbo"></meter></div></div>
-      <p class="game-tip">WASD dirigir <span>·</span> SHIFT turbo <span>·</span> ESPAÇO salto <span>·</span> CTRL derrapar</p>
-      <div class="touch-controls" id="touch-controls" aria-label="Controles de toque"><div class="touch-steering"><button data-control="left" aria-label="Virar à esquerda">←</button><div><button data-control="forward" aria-label="Acelerar">↑</button><button data-control="back" aria-label="Ré">↓</button></div><button data-control="right" aria-label="Virar à direita">→</button></div><div class="touch-actions"><button data-control="drift">DRIFT</button><button data-control="jump">PULAR</button><button data-control="boost" class="touch-boost">TURBO</button></div></div>
+      <div class="driving-info"><div class="speed"><strong id="speed">0</strong><span>KM/H</span></div><span class="driving-state" id="driving-state">NO CHÃO</span><div class="boost-meter"><div><span>TURBO</span><strong id="boost-value">100</strong></div><meter id="boost" min="0" max="100" value="100" aria-label="Carga do turbo"></meter></div></div>
+      <p class="game-tip">WASD dirigir <span>·</span> SHIFT turbo <span>·</span> ESPAÇO salto <span>·</span> CTRL derrapar <span>·</span> Q/E air roll</p>
+      <div class="touch-controls" id="touch-controls" aria-label="Controles de toque"><div class="touch-steering"><button data-control="left" aria-label="Virar à esquerda">←</button><div><button data-control="forward" aria-label="Acelerar">↑</button><button data-control="back" aria-label="Ré">↓</button></div><button data-control="right" aria-label="Virar à direita">→</button></div><div class="touch-actions"><button data-control="rollLeft" aria-label="Air roll esquerdo">↶</button><button data-control="rollRight" aria-label="Air roll direito">↷</button><button data-control="drift">DRIFT</button><button data-control="jump">PULAR</button><button data-control="boost" class="touch-boost">TURBO</button></div></div>
     </section>
 
-    <footer class="bottom-bar"><span class="edition">SOCCER CAR <span>VOL. 01</span></span><span id="status" role="status">PREPARANDO A ARENA…</span><span class="performance"><span id="renderer-label">3D</span><span id="fps">— FPS</span></span></footer>
+    <footer class="bottom-bar"><span class="edition">SOCCER CAR <span>VOL. 02</span></span><span id="status" role="status">PREPARANDO A ARENA…</span><span class="performance"><span id="renderer-label">3D</span><span id="fps">— FPS</span></span></footer>
+    <section id="graphics-error" class="graphics-error" hidden role="alert"><h2>A arena precisa de 3D.</h2><p>WebGL 2 está indisponível ou a conexão com a GPU foi perdida. Ative a aceleração gráfica nas configurações do navegador e tente novamente.</p><button id="retry-graphics" class="primary">TENTAR NOVAMENTE</button></section>
     <div class="toast" id="toast" role="status" hidden></div>
   </main>
 
-  <dialog id="garage" aria-labelledby="garage-title"><div class="dialog-heading"><div><p class="eyebrow">ESCOLHA SUA ASSINATURA</p><h2 id="garage-title">Sua garagem<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar garagem">×</button></div><p class="dialog-description">Três personalidades. A mesma vontade de marcar.</p><div class="car-grid">${Object.entries(
+  <dialog id="garage" aria-labelledby="garage-title"><div class="dialog-heading"><div><p class="eyebrow">ESCOLHA SUA ASSINATURA</p><h2 id="garage-title">Sua garagem<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar garagem">×</button></div><p class="dialog-description">Três carrocerias, cinco pinturas. A mesma física para todas.</p><div class="car-grid">${Object.entries(
     CAR_MODELS,
   )
     .map(
@@ -55,9 +56,9 @@ app.innerHTML = `
       "",
     )}</div><div class="paint-row"><span>PINTURA</span><div class="swatches">${["#d7fb55", "#55d9e9", "#fa785b", "#f4f1e7", "#a596ee"].map((color, i) => `<button class="swatch" style="--paint:${color}" data-color="${color}" aria-label="${["Lima", "Ciano", "Coral", "Marfim", "Lilás"][i]}" aria-pressed="false"></button>`).join("")}</div><button class="primary compact" data-close>PRONTO PARA JOGAR ↗</button></div></dialog>
 
-  <dialog id="settings" aria-labelledby="settings-title"><div class="dialog-heading"><div><p class="eyebrow">DO SEU JEITO</p><h2 id="settings-title">Configurações<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar configurações">×</button></div><div class="settings-grid"><label>Gráficos<select data-setting="quality"><option value="auto">Automático</option><option value="low">Econômico</option><option value="high">Alta qualidade</option><option value="2d">Modo 2D compatível</option></select><small>Automático ajusta a resolução ao desempenho.</small></label><label>Câmera<select data-setting="camera"><option value="chase">Atrás do carro</option><option value="ball">Seguir a bola</option><option value="overview">Visão da arena</option></select></label><label>Volume<input type="range" data-setting="volume" min="0" max="1" step="0.05"/><small>Sons de contato, saída e gol.</small></label><label>Sensibilidade da direção<input type="range" data-setting="sensitivity" min="0.5" max="2" step="0.05"/></label><label>Zona morta do controle<input type="range" data-setting="deadzone" min="0.05" max="0.4" step="0.01"/><small>Aumente se o carro virar sozinho.</small></label><label class="checkbox-label"><input type="checkbox" data-setting="reducedMotion"/> Reduzir movimento da câmera</label></div><p class="settings-note" id="storage-note">Suas preferências ficam salvas neste navegador.</p><div class="dialog-footer"><button class="text-button" id="restore-settings">RESTAURAR PADRÕES</button><button class="primary compact" data-close>CONCLUÍDO ✓</button></div></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="dialog-heading"><div><p class="eyebrow">DO SEU JEITO</p><h2 id="settings-title">Configurações<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar configurações">×</button></div><div class="settings-grid"><label>Gráficos<select data-setting="quality"><option value="auto">Automático</option><option value="low">Econômico 3D</option><option value="high">Alta qualidade</option></select><small>Automático ajusta a resolução ao desempenho.</small></label><label>Câmera<select data-setting="camera"><option value="chase">Atrás do carro</option><option value="ball">Seguir a bola</option><option value="overview">Visão da arena</option></select></label><label>Volume<input type="range" data-setting="volume" min="0" max="1" step="0.05"/><small>Sons de contato, saída e gol.</small></label><label>Sensibilidade da direção<input type="range" data-setting="sensitivity" min="0.5" max="2" step="0.05"/></label><label>Zona morta do controle<input type="range" data-setting="deadzone" min="0.05" max="0.4" step="0.01"/><small>Aumente se o carro virar sozinho.</small></label><label class="checkbox-label"><input type="checkbox" data-setting="reducedMotion"/> Reduzir movimento da câmera</label></div><p class="settings-note" id="storage-note">Suas preferências ficam salvas neste navegador.</p><div class="dialog-footer"><button class="text-button" id="restore-settings">RESTAURAR PADRÕES</button><button class="primary compact" data-close>CONCLUÍDO ✓</button></div></dialog>
 
-  <dialog id="help" aria-labelledby="help-title"><div class="dialog-heading"><div><p class="eyebrow">DOMINE O CAMPO</p><h2 id="help-title">Menos regras.<br>Mais jogo<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar instruções">×</button></div><p class="dialog-description">Leve a bola até o gol coral. Use o turbo para ganhar velocidade e pule para alcançar bolas altas. Os pontos amarelos recarregam seu turbo.</p><div class="controls-table"><div><strong>AÇÃO</strong><strong>TECLADO</strong><strong>CONTROLE</strong></div><div><span>Acelerar / ré</span><kbd>W / S ou ↑ / ↓</kbd><span>RT / LT</span></div><div><span>Dirigir</span><kbd>A / D ou ← / →</kbd><span>Analógico esquerdo</span></div><div><span>Turbo</span><kbd>Shift</kbd><span>B / ○</span></div><div><span>Salto / salto duplo</span><kbd>Espaço</kbd><span>A / ×</span></div><div><span>Derrapar</span><kbd>Ctrl</kbd><span>X / □</span></div><div><span>Trocar câmera</span><kbd>C</kbd><span>Y / △</span></div><div><span>Pausar</span><kbd>Esc / P</kbd><span>Start / Options</span></div><div><span>Reposicionar no treino</span><kbd>R</kbd><span>Back / Share</span></div></div><p class="settings-note">Conecte o controle e pressione um botão. O reconhecimento depende do navegador e do mapeamento padrão do dispositivo. Em telas de toque, use os botões na arena.</p><button class="primary compact" data-close>ENTENDI, VAMOS JOGAR ↗</button></dialog>
+  <dialog id="help" aria-labelledby="help-title"><div class="dialog-heading"><div><p class="eyebrow">DOMINE O CAMPO</p><h2 id="help-title">Menos regras.<br>Mais jogo<span>.</span></h2></div><button class="close-button" data-close aria-label="Fechar instruções">×</button></div><p class="dialog-description">Leve a bola até o gol coral. Use o turbo para ganhar velocidade e pule para alcançar bolas altas. Segure o salto para subir mais. No segundo toque, indique uma direção para executar um flip. Incline o carro e use turbo para voar; acelere nas rampas para subir pelas paredes. Os pontos pequenos repõem 12 de turbo e os grandes completam a reserva.</p><div class="controls-table"><div><strong>AÇÃO</strong><strong>TECLADO</strong><strong>CONTROLE</strong></div><div><span>Acelerar / ré</span><kbd>W / S ou ↑ / ↓</kbd><span>RT / LT</span></div><div><span>Dirigir</span><kbd>A / D ou ← / →</kbd><span>Analógico esquerdo</span></div><div><span>Turbo</span><kbd>Shift</kbd><span>B / ○</span></div><div><span>Salto / flip direcional</span><kbd>Espaço</kbd><span>A / ×</span></div><div><span>Derrapar</span><kbd>Ctrl</kbd><span>X / □</span></div><div><span>Inclinar / girar no ar</span><kbd>WASD</kbd><span>Analógico esquerdo</span></div><div><span>Air roll</span><kbd>Q / E ou Ctrl + A/D</kbd><span>X ou LB + analógico</span></div><div><span>Trocar câmera</span><kbd>C</kbd><span>Y / △</span></div><div><span>Pausar</span><kbd>Esc / P</kbd><span>Start / Options</span></div><div><span>Reposicionar no treino</span><kbd>R</kbd><span>Back / Share</span></div></div><p class="settings-note">Conecte o controle e pressione um botão. O reconhecimento depende do navegador e do mapeamento padrão do dispositivo. Em telas de toque, use os botões na arena.</p><button class="primary compact" data-close>ENTENDI, VAMOS JOGAR ↗</button></dialog>
 
   <dialog id="pause" class="small-dialog" aria-labelledby="pause-title"><p class="eyebrow">UMA PARADA NOS BOXES</p><h2 id="pause-title">Jogo pausado<span>.</span></h2><p>A arena espera por você.</p><div class="stack-actions"><button class="primary" id="resume">VOLTAR AO JOGO →</button><button class="secondary" id="pause-settings">CONFIGURAÇÕES</button><button class="text-button" id="quit">SAIR PARA O MENU</button></div></dialog>
   <dialog id="result" class="small-dialog" aria-labelledby="result-title"><p class="eyebrow">APITO FINAL</p><h2 id="result-title">Boa partida<span>.</span></h2><p class="result-score" id="result-score">0 — 0</p><p id="result-copy"></p><div class="stack-actions"><button class="primary" id="rematch">JOGAR NOVAMENTE ↗</button><button class="text-button" id="result-home">VOLTAR AO MENU</button></div></dialog>
@@ -104,11 +105,7 @@ function toast(message: string) {
   }, 3500);
 }
 function focusArena() {
-  const target =
-    canvas.style.visibility === "hidden"
-      ? (canvas.nextElementSibling as HTMLElement)
-      : canvas;
-  target?.focus();
+  canvas.focus();
 }
 function persist() {
   const saved = saveSettings(settings);
@@ -153,13 +150,16 @@ function syncSettings() {
 async function rebuildRenderer() {
   const generation = ++rendererGeneration;
   loading = true;
+  $("#graphics-error").hidden = true;
   $<HTMLButtonElement>("#start-duel").disabled = true;
   $<HTMLButtonElement>("#start-training").disabled = true;
+  canvas.removeEventListener("webglcontextlost", graphicsLost);
   renderer?.dispose();
   renderer = null;
   const replacement = canvas.cloneNode(false) as HTMLCanvasElement;
   canvas.replaceWith(replacement);
   canvas = replacement;
+  canvas.addEventListener("webglcontextlost", graphicsLost);
   try {
     const created = await createRenderer(canvas, settings);
     if (generation !== rendererGeneration) {
@@ -175,9 +175,26 @@ async function rebuildRenderer() {
   } catch {
     loading = false;
     $("#status").textContent = "NÃO FOI POSSÍVEL ABRIR A ARENA";
-    toast("Abra Configurações e escolha o modo 2D para tentar novamente.");
+    showGraphicsError();
   }
 }
+function showGraphicsError() {
+  input.setEnabled(false);
+  $("#graphics-error").hidden = false;
+  $("#retry-graphics").focus();
+}
+function graphicsLost(event: Event) {
+  event.preventDefault();
+  pauseGame();
+  returnToPause = false;
+  closeDialogs();
+  loading = true;
+  showGraphicsError();
+}
+$("#retry-graphics").addEventListener("click", async () => {
+  await rebuildRenderer();
+  if (renderer && running) $<HTMLDialogElement>("#pause").showModal();
+});
 function openDialog(id: string) {
   if (running && !paused) pauseGame();
   const pauseDialog = $<HTMLDialogElement>("#pause");
@@ -230,6 +247,7 @@ function pauseGame() {
   $<HTMLDialogElement>("#pause").showModal();
 }
 function resume() {
+  if (loading || !renderer) return;
   returnToPause = false;
   closeDialogs();
   paused = false;
@@ -255,8 +273,9 @@ function updateCameraLabel() {
 function updateHud() {
   $("#device").textContent = input.deviceLabel;
   $(".connection").classList.toggle("connected", input.gamepadConnected);
-  $("#renderer-label").textContent =
-    renderer?.kind === "2d" ? "MODO 2D" : "WEBGL 2";
+  $("#renderer-label").textContent = renderer
+    ? "3D / WEBGL 2"
+    : "3D INDISPONÍVEL";
   if (!running) return;
   $("#player-score").textContent = String(state.score[0]);
   $("#bot-score").textContent =
@@ -288,9 +307,20 @@ function updateHud() {
   }
   $("#speed").textContent = String(
     Math.round(
-      Math.hypot(state.player.velocity.x, state.player.velocity.z) * 3.6,
+      Math.hypot(
+        state.player.velocity.x,
+        state.player.velocity.y,
+        state.player.velocity.z,
+      ) * 3.6,
     ),
   );
+  $("#driving-state").textContent = !state.player.grounded
+    ? `NO AR · ${state.player.position.y.toFixed(1)} m`
+    : state.player.surfaceNormal.y < 0.7
+      ? "NA PAREDE"
+      : state.player.supersonic
+        ? "SUPERSÔNICO"
+        : "NO CHÃO";
   $("#boost-value").textContent =
     state.mode === "training" ? "∞" : String(Math.ceil(state.player.boost));
   $<HTMLMeterElement>("#boost").value = state.player.boost;
@@ -332,7 +362,6 @@ document
   .forEach((element) =>
     element.addEventListener("change", () => {
       const key = element.dataset.setting as keyof Settings;
-      const beforeQuality = settings.quality;
       const value =
         element instanceof HTMLInputElement && element.type === "checkbox"
           ? element.checked
@@ -341,11 +370,7 @@ document
             : element.value;
       settings = { ...settings, [key]: value };
       persist();
-      if (
-        key === "quality" &&
-        (beforeQuality === "2d" || settings.quality === "2d")
-      )
-        void rebuildRenderer();
+      if (key === "quality") void rebuildRenderer();
     }),
   );
 document.querySelectorAll<HTMLElement>("[data-model]").forEach((button) =>

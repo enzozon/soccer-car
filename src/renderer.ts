@@ -6,11 +6,11 @@ import {
   type GameState,
   type Settings,
 } from "./types.ts";
-import { createCanvasRenderer } from "./renderer2d.ts";
+import { arenaSurfaces } from "./arena-physics.ts";
 
 /** Renderers only read simulation state. Call resize after layout changes and dispose before replacing the canvas. */
 export interface GameRenderer {
-  readonly kind: "3d" | "2d";
+  readonly kind: "3d";
   render(
     state: GameState,
     settings: Settings,
@@ -21,69 +21,19 @@ export interface GameRenderer {
   dispose(): void;
 }
 
-/** Three loads only when requested; Canvas remains usable without WebGL 2. */
+/** Todos os perfis usam 3D; indisponibilidade precisa ser tratada pela interface. */
 export async function createRenderer(
   canvas: HTMLCanvasElement,
   settings: Settings,
 ): Promise<GameRenderer> {
-  if (settings.quality === "2d") return createCanvasRenderer(canvas);
-  let fallback: GameRenderer | null = null;
-  let alternateCanvas: HTMLCanvasElement | null = null;
-  const originalVisibility = canvas.style.visibility;
-  function useFallback() {
-    if (fallback) return fallback;
-    // A canvas cannot switch context types after acquiring WebGL.
-    alternateCanvas = document.createElement("canvas");
-    alternateCanvas.tabIndex = -1;
-    alternateCanvas.setAttribute(
-      "aria-label",
-      "Arena de futebol com carros em 2D",
-    );
-    alternateCanvas.style.cssText =
-      "position:absolute;inset:0;width:100%;height:100%;outline:none;";
-    canvas.after(alternateCanvas);
-    canvas.style.visibility = "hidden";
-    fallback = createCanvasRenderer(alternateCanvas);
-    return fallback;
-  }
-  let sceneRenderer: GameRenderer | null = null;
-  try {
-    const context = canvas.getContext("webgl2", {
-      alpha: false,
-      antialias: settings.quality === "high",
-      powerPreference: "high-performance",
-    });
-    if (context) {
-      const THREE = await import("./three-api.ts");
-      sceneRenderer = createThreeRenderer(THREE, canvas, context, settings);
-    } else useFallback();
-  } catch (error) {
-    console.warn("A arena mudou para Canvas 2D:", error);
-    useFallback();
-  }
-  function onContextLost(event: Event) {
-    event.preventDefault();
-    useFallback();
-  }
-  canvas.addEventListener("webglcontextlost", onContextLost);
-  return {
-    get kind() {
-      return fallback ? "2d" : "3d";
-    },
-    render(state, nextSettings, dt, showroom) {
-      (fallback ?? sceneRenderer)?.render(state, nextSettings, dt, showroom);
-    },
-    resize() {
-      (fallback ?? sceneRenderer)?.resize();
-    },
-    dispose() {
-      canvas.removeEventListener("webglcontextlost", onContextLost);
-      fallback?.dispose();
-      sceneRenderer?.dispose();
-      alternateCanvas?.remove();
-      canvas.style.visibility = originalVisibility;
-    },
-  };
+  const context = canvas.getContext("webgl2", {
+    alpha: false,
+    antialias: settings.quality === "high",
+    powerPreference: "high-performance",
+  });
+  if (!context) throw new Error("WebGL 2 indisponivel");
+  const THREE = await import("./three-api.ts");
+  return createThreeRenderer(THREE, canvas, context, settings);
 }
 
 function createThreeRenderer(
@@ -145,7 +95,6 @@ function createThreeRenderer(
   const lime = material("#d7fb55", true);
   const coral = material("#fc927c", true);
   const amber = material("#ffc56a", true);
-  const padOff = material("#4d5f3e");
   const windowMaterial = material("#253e4b");
   windowMaterial.metalness = 0.55;
   windowMaterial.roughness = 0.26;
@@ -213,13 +162,40 @@ function createThreeRenderer(
   } = FIELD;
   plane(scene, material("#526c5e"), 0, -0.4, 0, 400, 400);
   box(scene, dark, 0, -0.29, 0, w * 2 + 12, 0.45, l * 2 + 17);
-  plane(scene, turf, 0, 0, 0, w * 2, l * 2);
-  for (let i = 0; i < 12; i += 2)
-    plane(scene, stripe, 0, 0.004, -l + 3 + i * 6, w * 2, 6);
-  for (const x of [-w + 0.85, w - 0.85])
-    plane(scene, chalk, x, 0.025, 0, 0.12, l * 2 - 1.7);
-  for (const z of [-l + 0.85, 0, l - 0.85])
-    plane(scene, chalk, 0, 0.025, z, w * 2 - 1.7, 0.12);
+  // Poligono do campo e faixas respeitam os quatro cantos chanfrados.
+  const cornerX = FIELD.cornerLimit - l,
+    cornerZ = FIELD.cornerLimit - w;
+  const perimeter = [
+    [-cornerX, -l],
+    [cornerX, -l],
+    [w, -cornerZ],
+    [w, cornerZ],
+    [cornerX, l],
+    [-cornerX, l],
+    [-w, cornerZ],
+    [-w, -cornerZ],
+  ];
+  const floorPositions: number[] = [];
+  for (let i = 0; i < perimeter.length; i++) {
+    const a = perimeter[i],
+      b = perimeter[(i + 1) % perimeter.length];
+    floorPositions.push(0, 0, 0, b[0], 0, b[1], a[0], 0, a[1]);
+  }
+  const floorGeometry = geometry(new THREE.BufferGeometry());
+  floorGeometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(floorPositions, 3),
+  );
+  floorGeometry.computeVertexNormals();
+  scene.add(new THREE.Mesh(floorGeometry, turf));
+  for (let i = 0; i < 24; i += 2) {
+    const z = -l + ((i + 0.5) * l) / 12;
+    const half = Math.min(w, FIELD.cornerLimit - Math.abs(z) - l / 24);
+    plane(scene, stripe, 0, 0.004, z, half * 2, l / 12);
+  }
+  for (const x of [-w + 4, w - 4])
+    plane(scene, chalk, x, 0.025, 0, 0.12, cornerZ * 2);
+  plane(scene, chalk, 0, 0.025, 0, (w - 4) * 2, 0.12);
   ring(7.8, 0.13, chalk, 0, 0);
   const centerDot = new THREE.Mesh(disk, chalk);
   centerDot.rotation.x = -Math.PI / 2;
@@ -239,31 +215,59 @@ function createThreeRenderer(
   for (const side of [-1, 1]) {
     const teamColor = side < 0 ? coral : lime;
     const z = side * l;
-    plane(scene, dark, 0, 0.01, side * (l + 2), g * 2, 4);
+    plane(
+      scene,
+      dark,
+      0,
+      0.01,
+      side * (l + FIELD.goalDepth / 2),
+      g * 2,
+      FIELD.goalDepth,
+    );
     for (const x of [-g, g]) {
       box(scene, teamColor, x, gh / 2, z, 0.24, gh, 0.24);
-      box(scene, dark, x, gh / 2, side * (l + 4), 0.15, gh, 0.15);
-      box(scene, teamColor, x, gh, side * (l + 2), 0.15, 0.15, 4);
+      box(scene, dark, x, gh / 2, side * (l + FIELD.goalDepth), 0.15, gh, 0.15);
+      box(
+        scene,
+        teamColor,
+        x,
+        gh,
+        side * (l + FIELD.goalDepth / 2),
+        0.15,
+        0.15,
+        FIELD.goalDepth,
+      );
     }
     box(scene, teamColor, 0, gh, z, g * 2 + 0.25, 0.24, 0.24);
-    box(scene, dark, 0, gh, side * (l + 4), g * 2, 0.15, 0.15);
+    box(scene, dark, 0, gh, side * (l + FIELD.goalDepth), g * 2, 0.15, 0.15);
     for (let x = -g; x <= g; x += 1) {
-      line(x, 0, side * (l + 4), x, gh, side * (l + 4));
-      line(x, gh, z, x, gh, side * (l + 4));
+      line(
+        x,
+        0,
+        side * (l + FIELD.goalDepth),
+        x,
+        gh,
+        side * (l + FIELD.goalDepth),
+      );
+      line(x, gh, z, x, gh, side * (l + FIELD.goalDepth));
     }
     for (let y = 0; y <= gh; y += 1) {
-      line(-g, y, side * (l + 4), g, y, side * (l + 4));
-      for (const x of [-g, g]) line(x, y, z, x, y, side * (l + 4));
-    }
-    for (const x of [-(w + g) / 2, (w + g) / 2]) {
-      box(scene, dark, x, 0.7, z + side * 0.25, w - g, 1.4, 0.5);
-      box(scene, teamColor, x, 1.42, z + side * 0.25, w - g, 0.05, 0.56);
+      line(
+        -g,
+        y,
+        side * (l + FIELD.goalDepth),
+        g,
+        y,
+        side * (l + FIELD.goalDepth),
+      );
+      for (const x of [-g, g])
+        line(x, y, z, x, y, side * (l + FIELD.goalDepth));
     }
     for (const x of [-g - 5, g + 5])
       plane(scene, chalk, x, 0.025, side * (l - 5), 0.12, 10);
     plane(scene, chalk, 0, 0.025, side * (l - 10), g * 2 + 10, 0.12);
     for (let row = 0; row < 4; row++) {
-      const rz = side * (l + 7 + row * 1.7);
+      const rz = side * (l + 12 + row * 1.7);
       box(
         scene,
         row % 2 === 0 ? concrete : metal,
@@ -287,18 +291,6 @@ function createThreeRenderer(
     }
   }
   for (const side of [-1, 1]) {
-    box(scene, dark, side * (w + 0.25), 0.7, 0, 0.5, 1.4, l * 2);
-    for (const zSide of [-1, 1])
-      box(
-        scene,
-        zSide < 0 ? coral : lime,
-        side * (w + 0.25),
-        1.42,
-        (zSide * l) / 2,
-        0.56,
-        0.05,
-        l,
-      );
     for (let row = 0; row < 4; row++) {
       const rx = side * (w + 3 + row * 1.7);
       box(
@@ -323,6 +315,90 @@ function createThreeRenderer(
       );
     }
   }
+  const rampPositions: number[][] = [[], []];
+  const r = FIELD.rampRadius,
+    ceiling = FIELD.wallHeight;
+  for (let edge = 0; edge < perimeter.length; edge++) {
+    const a = perimeter[edge],
+      b = perimeter[(edge + 1) % perimeter.length];
+    const dx = b[0] - a[0],
+      dz = b[1] - a[1],
+      size = Math.hypot(dx, dz);
+    const nx = -dz / size,
+      nz = dx / size;
+    const ranges =
+      edge === 0 || edge === 4
+        ? [
+            [0, (size - 2 * g) / 2],
+            [(size + 2 * g) / 2, size],
+          ]
+        : [[0, size]];
+    for (const top of [false, true])
+      for (const [start, end] of top ? [[0, size]] : ranges) {
+        const point = (distance: number, angle: number) => {
+          const inset = r * (1 - Math.sin(angle));
+          const y = r * (1 - Math.cos(angle));
+          return [
+            a[0] + (dx * distance) / size + nx * inset,
+            top ? ceiling - y : y,
+            a[1] + (dz * distance) / size + nz * inset,
+          ];
+        };
+        for (let j = 0; j < 16; j++) {
+          const t = ((j / 16) * Math.PI) / 2,
+            next = (((j + 1) / 16) * Math.PI) / 2;
+          const p = point(start, t),
+            q = point(end, t),
+            u = point(start, next),
+            v = point(end, next);
+          rampPositions[a[1] + b[1] < 0 ? 0 : 1].push(
+            ...p,
+            ...u,
+            ...q,
+            ...q,
+            ...u,
+            ...v,
+          );
+        }
+      }
+    for (let distance = 0; distance <= size; distance += 4) {
+      const x = a[0] + (dx * distance) / size,
+        z = a[1] + (dz * distance) / size;
+      const mouth = (edge === 0 || edge === 4) && Math.abs(x) < g;
+      line(x, mouth ? gh : r, z, x, ceiling - r, z);
+    }
+    for (let y = r; y <= ceiling - r; y += 3) {
+      for (const [start, end] of y < gh ? ranges : [[0, size]])
+        line(
+          a[0] + (dx * start) / size,
+          y,
+          a[1] + (dz * start) / size,
+          a[0] + (dx * end) / size,
+          y,
+          a[1] + (dz * end) / size,
+        );
+    }
+  }
+  for (let team = 0; team < 2; team++) {
+    const shape = geometry(new THREE.BufferGeometry());
+    shape.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(rampPositions[team], 3),
+    );
+    shape.computeVertexNormals();
+    const paint = material(team === 0 ? "#805d54" : "#566b3f");
+    paint.side = THREE.DoubleSide;
+    scene.add(new THREE.Mesh(shape, paint));
+  }
+  for (let x = -w + 8; x < w; x += 8)
+    line(
+      x,
+      ceiling,
+      -Math.min(l, FIELD.cornerLimit - Math.abs(x)),
+      x,
+      ceiling,
+      Math.min(l, FIELD.cornerLimit - Math.abs(x)),
+    );
   const netGeometry = geometry(new THREE.BufferGeometry());
   netGeometry.setAttribute(
     "position",
@@ -434,6 +510,7 @@ function createThreeRenderer(
   }
   function makeCar(model: CarModel, paint: Three.Material) {
     const root = new THREE.Group();
+    root.scale.setScalar(0.32);
     root.add(new THREE.Mesh(bodyGeometry(model), paint));
     box(root, rubber, 0, -0.22, 0, 1.95, 0.25, 3.35);
     const rally = model === "rally",
@@ -526,8 +603,8 @@ function createThreeRenderer(
     scene.add(mesh);
     return mesh;
   }
-  const playerShadow = shadow(1.5, 2.3),
-    opponentShadow = shadow(1.5, 2.3),
+  const playerShadow = shadow(0.48, 0.74),
+    opponentShadow = shadow(0.48, 0.74),
     ballShadow = shadow(1.15, 1.15);
   const ballGeometry = geometry(
     new THREE.IcosahedronGeometry(FIELD.ballRadius, 1),
@@ -564,7 +641,11 @@ function createThreeRenderer(
     new THREE.CylinderGeometry(0.93, 0.93, 0.06, 12),
   );
   const padCoreGeometry = geometry(new THREE.OctahedronGeometry(0.38));
-  const pads: { base: Three.Mesh; core: Three.Mesh }[] = [];
+  let padBases: Three.InstancedMesh | undefined,
+    padCores: Three.InstancedMesh | undefined;
+  const padTransform = new THREE.Group();
+  const activePadColor = new THREE.Color("#ffffff"),
+    inactivePadColor = new THREE.Color("#2c3023");
 
   // Agrupar a arquitetura estática reduz chamadas de desenho sem alterar a arte.
   const batches = new Map<string, Three.Mesh[]>();
@@ -611,7 +692,7 @@ function createThreeRenderer(
     width = Math.max(1, canvas.clientWidth || window.innerWidth);
     height = Math.max(1, canvas.clientHeight || window.innerHeight);
     const limit =
-      quality === "high" ? 1.75 : quality === "low" ? 1 : adaptiveRatio;
+      quality === "high" ? 1.75 : quality === "low" ? 0.8 : adaptiveRatio;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, limit));
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
@@ -625,7 +706,12 @@ function createThreeRenderer(
     motion: boolean,
   ) {
     view.root.position.set(car.position.x, car.position.y, car.position.z);
-    view.root.rotation.set(0, -car.heading, 0);
+    view.root.quaternion.set(
+      car.orientation.x,
+      car.orientation.y,
+      car.orientation.z,
+      car.orientation.w,
+    );
     view.exhaust.visible = car.boosting;
     view.exhaust.scale.z = motion ? 1 + Math.sin(time * 43) * 0.14 : 1;
     const wheelAngle =
@@ -685,8 +771,9 @@ function createThreeRenderer(
       state.ball.position.z,
     );
     if (!settings.reducedMotion) {
-      ball.rotation.x += (state.ball.velocity.z * dt) / FIELD.ballRadius;
-      ball.rotation.z -= (state.ball.velocity.x * dt) / FIELD.ballRadius;
+      ball.rotation.x += state.ball.angularVelocity.x * dt;
+      ball.rotation.y += state.ball.angularVelocity.y * dt;
+      ball.rotation.z += state.ball.angularVelocity.z * dt;
     }
     ballShadow.position.set(
       state.ball.position.x,
@@ -696,39 +783,54 @@ function createThreeRenderer(
     const ballShadeScale =
       1 + Math.max(0, state.ball.position.y - FIELD.ballRadius) * 0.018;
     ballShadow.scale.set(1.15 * ballShadeScale, 1.15 * ballShadeScale, 1);
-    while (pads.length < state.pads.length) {
-      const base = new THREE.Mesh(padGeometry, amber);
-      const core = new THREE.Mesh(padCoreGeometry, amber);
-      scene.add(base, core);
-      pads.push({ base, core });
+    if (!padBases || !padCores) {
+      padBases = new THREE.InstancedMesh(padGeometry, amber, state.pads.length);
+      padCores = new THREE.InstancedMesh(
+        padCoreGeometry,
+        amber,
+        state.pads.length,
+      );
+      // Apenas 34 instancias; duas chamadas de desenho e nenhum objeto por pad.
+      padBases.frustumCulled = false;
+      padCores.frustumCulled = false;
+      instances.push(padBases, padCores);
+      scene.add(padBases, padCores);
     }
-    for (let i = 0; i < pads.length; i++) {
-      const pad = state.pads[i],
-        view = pads[i];
-      view.base.visible = Boolean(pad);
-      view.core.visible = Boolean(pad && pad.cooldown <= 0);
-      if (!pad) continue;
-      view.base.position.set(pad.x, 0.04, pad.z);
-      view.base.material = pad.cooldown > 0 ? padOff : amber;
-      view.core.position.set(pad.x, 0.55, pad.z);
-      view.core.rotation.y = settings.reducedMotion ? 0.4 : state.elapsed;
-    }
+    state.pads.forEach((pad, i) => {
+      padTransform.position.set(pad.x, 0.04, pad.z);
+      padTransform.rotation.y = 0;
+      padTransform.scale.setScalar(pad.large ? 1 : 0.55);
+      padTransform.updateMatrix();
+      padBases!.setMatrixAt(i, padTransform.matrix);
+      padBases!.setColorAt(
+        i,
+        pad.cooldown > 0 ? inactivePadColor : activePadColor,
+      );
+      padTransform.position.y = pad.large ? 0.55 : 0.22;
+      padTransform.rotation.y = settings.reducedMotion ? 0.4 : state.elapsed;
+      padTransform.scale.setScalar(pad.cooldown > 0 ? 0 : pad.large ? 1 : 0.45);
+      padTransform.updateMatrix();
+      padCores!.setMatrixAt(i, padTransform.matrix);
+    });
+    padBases.instanceMatrix.needsUpdate = true;
+    padBases.instanceColor!.needsUpdate = true;
+    padCores.instanceMatrix.needsUpdate = true;
     const position = state.player.position;
     if (showroom) {
       const angle = settings.reducedMotion
         ? 0.66
         : 0.66 + Math.sin(state.elapsed * 0.08) * 0.1;
-      const distance = width < 760 ? 92 : 79;
+      const distance = width < 760 ? 157 : 125;
       targetPosition.set(
         Math.sin(angle) * distance,
-        46,
+        72,
         Math.cos(angle) * distance,
       );
       // Aim left of the pitch, placing the stadium beside the lobby copy.
       targetLook.set(width > 1000 ? -18 : 0, 0, 0);
       camera.fov = 51;
     } else if (settings.camera === "overview") {
-      targetPosition.set(36, width < 760 ? 91 : 69, 61);
+      targetPosition.set(25, width < 760 ? 142 : 106, 55);
       targetLook.set(0, 0, 0);
       camera.fov = width < 760 ? 65 : 57;
     } else {
@@ -744,28 +846,38 @@ function createThreeRenderer(
         }
       }
       targetPosition.set(
-        position.x - forwardX * 16,
-        Math.max(0.72, position.y) + 10,
-        position.z - forwardZ * 16,
+        position.x - forwardX * 5.5,
+        Math.max(0.25, position.y) + 2.1,
+        position.z - forwardZ * 5.5,
       );
       if (settings.camera === "ball") {
         targetLook.set(
-          position.x + forwardX * 9,
-          Math.max(1.8, Math.min(state.ball.position.y, position.y + 8)),
-          position.z + forwardZ * 9,
+          state.ball.position.x,
+          state.ball.position.y,
+          state.ball.position.z,
         );
       } else
         targetLook.set(
-          position.x + forwardX * 9,
-          position.y + 1.4,
-          position.z + forwardZ * 9,
+          position.x + forwardX * 8,
+          position.y + 0.5,
+          position.z + forwardZ * 8,
         );
-      camera.fov = state.player.boosting && !settings.reducedMotion ? 67 : 62;
+      camera.fov = state.player.boosting && !settings.reducedMotion ? 88 : 80;
     }
     const cut = lastShowroom !== showroom || lastCamera !== settings.camera;
     const smoothing =
       cut || settings.reducedMotion ? 1 : 1 - Math.exp(-Math.max(dt, 0) * 6);
     camera.position.lerp(targetPosition, smoothing);
+    if (!showroom && settings.camera !== "overview") {
+      for (let pass = 0; pass < 3; pass++)
+        for (const surface of arenaSurfaces(camera.position)) {
+          if (surface.distance < 0.35) {
+            camera.position.x += surface.normal.x * (0.35 - surface.distance);
+            camera.position.y += surface.normal.y * (0.35 - surface.distance);
+            camera.position.z += surface.normal.z * (0.35 - surface.distance);
+          }
+        }
+    }
     smoothLook.lerp(targetLook, smoothing);
     camera.lookAt(smoothLook);
     camera.updateProjectionMatrix();

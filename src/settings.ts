@@ -14,7 +14,7 @@ export function validateSettings(value: unknown): Settings {
       result[key] = raw[key] as Settings[K];
   };
   pick("model", ["pulse", "rally", "vector"]);
-  pick("quality", ["auto", "low", "high", "2d"]);
+  pick("quality", ["auto", "low", "high"]);
   pick("camera", ["chase", "ball", "overview"]);
   pick("difficulty", ["easy", "normal", "hard"]);
   pick("duration", [60, 180, 300]);

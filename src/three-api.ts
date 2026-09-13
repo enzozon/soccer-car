@@ -8,6 +8,7 @@ export {
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
+  DoubleSide,
   Float32BufferAttribute,
   Fog,
   Group,

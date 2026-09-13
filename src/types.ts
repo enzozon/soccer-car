@@ -1,5 +1,5 @@
 export type CarModel = "pulse" | "rally" | "vector";
-export type Quality = "auto" | "low" | "high" | "2d";
+export type Quality = "auto" | "low" | "high";
 export type CameraMode = "chase" | "ball" | "overview";
 export type GameMode = "duel" | "training";
 export type Difficulty = "easy" | "normal" | "hard";
