@@ -3,7 +3,15 @@ import type { InputFrame, Settings } from "./types.ts";
 
 type Action = "pause" | "camera" | "reset";
 type TouchControl =
-  "forward" | "back" | "left" | "right" | "jump" | "boost" | "drift";
+  | "forward"
+  | "back"
+  | "left"
+  | "right"
+  | "jump"
+  | "boost"
+  | "drift"
+  | "rollLeft"
+  | "rollRight";
 const keyActions: Record<string, Action> = {
   Escape: "pause",
   KeyP: "pause",
@@ -11,6 +19,8 @@ const keyActions: Record<string, Action> = {
   KeyR: "reset",
 };
 const movementKeys = new Set([
+  "KeyQ",
+  "KeyE",
   "KeyW",
   "KeyS",
   "KeyA",
@@ -26,6 +36,8 @@ const movementKeys = new Set([
   "ControlRight",
 ]);
 const touchControls = new Set<TouchControl>([
+  "rollLeft",
+  "rollRight",
   "forward",
   "back",
   "left",
@@ -74,11 +86,15 @@ export function readGamepad(
       ? axis(buttonValue(gamepad.buttons[7])) -
         axis(buttonValue(gamepad.buttons[6]))
       : -axis(gamepad.axes[1]) || 0,
-    steer: clamp(
-      axis(gamepad.axes[0]) * clamp(finite(settings.sensitivity, 1), 0.25, 3),
-      -1,
-      1,
-    ),
+    steer: axis(gamepad.axes[0]),
+    pitch: axis(gamepad.axes[1]),
+    yaw: pressed(gamepad, 2) || pressed(gamepad, 4) ? 0 : axis(gamepad.axes[0]),
+    roll:
+      pressed(gamepad, 2) || pressed(gamepad, 4)
+        ? axis(gamepad.axes[0])
+        : pressed(gamepad, 5)
+          ? 1
+          : 0,
     jump: pressed(gamepad, 0),
     boost: pressed(gamepad, 1),
     drift: pressed(gamepad, 2),
@@ -194,6 +210,12 @@ export class InputController {
       boost: key("ShiftLeft", "ShiftRight") || touch.has("boost"),
       drift: key("ControlLeft", "ControlRight") || touch.has("drift"),
     };
+    local.pitch = -local.throttle;
+    local.yaw = local.drift ? 0 : local.steer;
+    local.roll =
+      Number(key("KeyE") || touch.has("rollRight")) -
+        Number(key("KeyQ") || touch.has("rollLeft")) ||
+      (local.drift ? local.steer : 0);
     const controller = pad ? readGamepad(pad, settings) : NEUTRAL_INPUT;
     if (
       pad &&
@@ -201,7 +223,9 @@ export class InputController {
         controller.steer ||
         controller.jump ||
         controller.boost ||
-        controller.drift)
+        controller.drift ||
+        controller.pitch ||
+        controller.roll)
     )
       this.label = pad.id || "Controle";
     return {
@@ -210,6 +234,9 @@ export class InputController {
       jump: local.jump || controller.jump,
       boost: local.boost || controller.boost,
       drift: local.drift || controller.drift,
+      pitch: local.pitch || controller.pitch || 0,
+      yaw: local.yaw || controller.yaw || 0,
+      roll: local.roll || controller.roll || 0,
     };
   }
 

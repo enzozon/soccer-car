@@ -16,6 +16,9 @@ test("controle aplica deadzone, gatilhos, botões e limites seguros", () => {
     jump: false,
     boost: false,
     drift: false,
+    pitch: -1,
+    yaw: 0,
+    roll: 0,
   });
 
   gamepad.axes[0] = 0.575;
@@ -49,7 +52,7 @@ test("controle aplica deadzone, gatilhos, botões e limites seguros", () => {
       { axes: [-0.9], buttons: [] },
       { ...DEFAULT_SETTINGS, sensitivity: 2 },
     ).steer,
-    -1,
+    (-0.9 + 0.15) / 0.85,
   );
   const invalid = readGamepad(
     {
