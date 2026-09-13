@@ -7,6 +7,7 @@ import {
   type Settings,
 } from "./types.ts";
 import { arenaSurfaces } from "./arena-physics.ts";
+import { rotate, FORWARD } from "./math.ts";
 
 /** Renderers only read simulation state. Call resize after layout changes and dispose before replacing the canvas. */
 export interface GameRenderer {
@@ -688,6 +689,7 @@ function createThreeRenderer(
   const targetPosition = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
   const smoothLook = new THREE.Vector3();
+  const targetUp = new THREE.Vector3(0, 1, 0);
   function resize() {
     width = Math.max(1, canvas.clientWidth || window.innerWidth);
     height = Math.max(1, canvas.clientHeight || window.innerHeight);
@@ -816,6 +818,7 @@ function createThreeRenderer(
     padBases.instanceColor!.needsUpdate = true;
     padCores.instanceMatrix.needsUpdate = true;
     const position = state.player.position;
+    targetUp.set(0, 1, 0);
     if (showroom) {
       const angle = settings.reducedMotion
         ? 0.66
@@ -862,6 +865,25 @@ function createThreeRenderer(
           position.y + 0.5,
           position.z + forwardZ * 8,
         );
+      if (
+        settings.camera === "chase" &&
+        state.player.grounded &&
+        state.player.surfaceNormal.y < 0.8
+      ) {
+        const nose = rotate(state.player.orientation, FORWARD),
+          up = state.player.surfaceNormal;
+        targetPosition.set(
+          position.x - nose.x * 5.5 + up.x * 2.1,
+          position.y - nose.y * 5.5 + up.y * 2.1,
+          position.z - nose.z * 5.5 + up.z * 2.1,
+        );
+        targetLook.set(
+          position.x + nose.x * 8,
+          position.y + nose.y * 8,
+          position.z + nose.z * 8,
+        );
+        targetUp.set(up.x, up.y, up.z);
+      }
       camera.fov = state.player.boosting && !settings.reducedMotion ? 88 : 80;
     }
     const cut = lastShowroom !== showroom || lastCamera !== settings.camera;
@@ -879,6 +901,7 @@ function createThreeRenderer(
         }
     }
     smoothLook.lerp(targetLook, smoothing);
+    camera.up.lerp(targetUp, smoothing).normalize();
     camera.lookAt(smoothLook);
     camera.updateProjectionMatrix();
     lastShowroom = showroom;
